@@ -1,0 +1,145 @@
+---
+title: "SOK 2008 UTF2"
+format: html
+editor: visual
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+rm(list=ls())
+library(tidyverse)
+library(rjstat)
+library(gdata)
+library(httr)
+library(gridExtra)
+library(readxl)
+library(RcppRoll)
+library(eurostat)
+```
+
+You can add options to executable code like this
+
+```{r}
+df_lønn <- get_eurostat("earn_mw_avgr2", time_format = "num", type = "label" )
+
+df_syss <- get_eurostat("lfsi_emp_a", time_format = "num", type = "label" )
+```
+
+```{r}
+
+
+df_lønn <- df_lønn[df_lønn$time == "2021" & df_lønn$indic_se == "Monthly minimum wage as a proportion of the mean gross monthly earnings", ]
+
+
+df_syss <- df_syss[df_syss$time == 2021 & df_syss$age == "From 20 to 64 years", ]
+
+df_syss <- df_syss[df_syss$unit == "Percentage of total population", ]
+
+df_syss <- df_syss[df_syss$sex == "Total", ]
+
+df_syss <- df_syss[df_syss$indic_em == "Persons in the labour force (former name: active persons)", ]
+```
+
+```{r}
+library(ggrepel)
+df_syss <- df_syss[c("values", "geo","indic_em")]
+
+df_lønn <- df_lønn[c("geo", "values","indic_se")]
+
+df1 <- df_syss %>%
+  left_join(df_lønn, by = "geo") %>%
+  filter(!is.na(values.x) & !is.na(values.y))
+
+df1 <- df1 %>%
+  distinct(geo, .keep_all = TRUE)
+
+ggplot(df1, aes(x = values.x, y = values.y, label= geo)) +
+  geom_point() +
+  geom_text(nudge_x = 1, nudge_y = 1, size = 2.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "purple") +  
+  labs(title = "Figur 6 - Sammenheng mellom sysselsetting og minstelønn",x = "Sysselsetting (20-60 år)", y = "Minstelønn", color = "Variable") +
+  scale_color_manual(values = c("Values.x" = "blue", "Values.y" = "red")) +
+  theme_minimal()
+
+```
+
+```{r}
+library(OECD)
+
+df_ff <- OECD::get_dataset("TUD", Time = 2018)
+
+df_ff <- df_ff %>%
+  rename("organisasjonsgrad" = ObsValue)
+
+df_ff <- df_ff[df_ff$Time == "2018", ]
+  
+
+df_unemp <- OECD::get_dataset("MIG_NUP_RATES_GENDER", time = 2018,ObsValue = "arbeidsledighetsrate" )
+
+df_unemp <- df_unemp %>%
+  rename("arbeidsledighetsrate" = ObsValue)
+
+df_unemp <- df_unemp[df_unemp$Time == "2018", ]
+
+df_unemp <- df_unemp[df_unemp$GENDER == "TOT", ]
+
+df_unemp <- df_unemp[df_unemp$RATE == "U_RATE", ]
+
+
+```
+
+```{r}
+
+df_unemp_NB <- df_unemp[df_unemp$BIRTH == "NB", ]
+
+df_unemp_FB <- df_unemp[df_unemp$BIRTH == "FB", ]
+
+df_unemp_FB <- df_unemp_FB[c("arbeidsledighetsrate", "COUNTRY")]
+
+df_unemp_NB <- df_unemp_NB[c("arbeidsledighetsrate", "COUNTRY")]
+```
+
+```{r}
+df_ff$organisasjonsgrad <- as.numeric(df_ff$organisasjonsgrad)
+
+df_ff <- df_ff[c("organisasjonsgrad", "LOCATION")]
+
+df_ff <- df_ff %>%
+  rename("COUNTRY" = LOCATION)
+```
+
+```{r}
+
+FF_FB <- df_ff %>%
+  full_join(df_unemp_FB, by = "COUNTRY")
+
+FF_NB <- df_ff %>%
+  full_join(df_unemp_NB, by = "COUNTRY")
+
+FF_FB$arbeidsledighetsrate <- as.numeric(FF_FB$arbeidsledighetsrate)
+
+FF_NB$arbeidsledighetsrate <- as.numeric(FF_NB$arbeidsledighetsrate)
+
+ggplot(FF_FB, aes(x = organisasjonsgrad, y = arbeidsledighetsrate, label = COUNTRY)) +
+  geom_point() +
+  geom_text(nudge_x = 1, nudge_y = 1, size = 2.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "purple") +  
+  labs(title="Figur 9 - Organisasjonsgrad og arbeidsledighetsrate - innenlandsfødte",x = "Organisasjonsgrad", y = "Arbeidsledighetsrate") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(FF_NB, aes(x = organisasjonsgrad, y = arbeidsledighetsrate, label = COUNTRY)) +
+  geom_point() +
+  geom_text(nudge_x = 1, nudge_y = 1, size = 2.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "purple") +  
+  labs(title="Figur 10 - Organisasjonsgrad og arbeidsledighetsrate - innenlandsfødte",x = "Organisasjonsgrad", y = "Arbeidsledighetsrate") +
+  theme_minimal()
+```
